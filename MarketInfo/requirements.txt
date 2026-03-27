@@ -1,0 +1,9 @@
+# Tushare 镜像库依赖
+tushare>=1.4.0
+pandas>=2.0.0
+numpy>=1.20.0
+
+# K线查看器依赖
+PyQt5>=5.15.0
+matplotlib>=3.5.0
+pypinyin>=0.50.0

@@ -1,0 +1,5 @@
+/data/skill_results
+*.db
+/MarketInfo/data/skill_results
+/tdx
+/depends/akshare
