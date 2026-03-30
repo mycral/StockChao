@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from mcp_server.tools.search import tool_fuzzy_search, tool_search_stocks, tool_search_concepts, tool_search_industries, tool_search_regions, tool_fuzzy_search_batch, tool_resolve_code_batch
 from mcp_server.tools.stock import tool_get_stock_info, tool_get_stock_info_batch, tool_get_stock_daily, tool_get_stock_daily_batch, tool_get_stock_concepts, tool_get_stock_industries, tool_get_stock_regions
 from mcp_server.tools.board import tool_get_all_concepts, tool_get_all_industries, tool_get_all_regions, tool_get_concept_stocks, tool_get_industry_stocks, tool_get_region_stocks
-from mcp_server.tools.topic import tool_add_topic_history, tool_get_topic_history, tool_get_latest_topics
+from mcp_server.tools.topic import tool_add_topic_history, tool_get_topic_history, tool_get_latest_topics, tool_delete_topic_history, tool_clear_all_topic_history
 
 # MCP Server metadata
 SERVER_NAME = "MarketInfo"
@@ -41,6 +41,8 @@ __all__ = [
     "add_topic_history",
     "get_topic_history",
     "get_latest_topics",
+    "delete_topic_history",
+    "clear_all_topic_history",
 ]
 
 
@@ -487,6 +489,27 @@ def main(host: str = "127.0.0.1", port: int = 9876):
         """
         return tool_get_latest_topics(limit)
 
+    @app.tool()
+    def delete_topic_history(topic_id: int) -> dict:
+        """删除指定热点记录
+
+        Args:
+            topic_id: int, 热点记录ID
+
+        Returns:
+            dict: {"success": bool, "deleted": bool}
+        """
+        return tool_delete_topic_history(topic_id)
+
+    @app.tool()
+    def clear_all_topic_history() -> dict:
+        """清空所有热点历史记录
+
+        Returns:
+            dict: {"success": bool, "deleted_count": int}
+        """
+        return tool_clear_all_topic_history()
+
     # 打印服务信息
     print("=" * 50)
     print(f"{SERVER_NAME} MCP Server v{SERVER_VERSION}")
@@ -511,8 +534,8 @@ def main(host: str = "127.0.0.1", port: int = 9876):
     print("按 Ctrl+C 停止服务")
     print("=" * 50)
 
-    # 运行 HTTP 服务器
-    app.run(transport="http", host=args.host, port=args.port)
+    # 运行 HTTP 服务器 (streamable-http)
+    app.run(transport="streamable-http", host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

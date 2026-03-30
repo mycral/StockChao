@@ -106,7 +106,46 @@ def tool_get_latest_topics(limit: int = 20) -> list[dict]:
         return [{"error": str(e)}]
 
 
+def tool_delete_topic_history(topic_id: int) -> dict:
+    """删除指定热点记录
+
+    Args:
+        topic_id: int, 热点记录ID
+
+    Returns:
+        dict: {"success": bool, "deleted": bool}
+    """
+    logger.info(f"[REQUEST] delete_topic_history | topic_id={topic_id}")
+    try:
+        with QueryDB(DB_PATH) as q:
+            q.delete_topic_history(topic_id)
+            logger.info(f"[RESPONSE] delete_topic_history | success")
+            return {"success": True, "deleted": True}
+    except Exception as e:
+        logger.error(f"[ERROR] delete_topic_history | {e}")
+        return {"success": False, "error": str(e)}
+
+
+def tool_clear_all_topic_history() -> dict:
+    """清空所有热点历史记录
+
+    Returns:
+        dict: {"success": bool, "deleted_count": int}
+    """
+    logger.info(f"[REQUEST] clear_all_topic_history")
+    try:
+        with QueryDB(DB_PATH) as q:
+            count = q.clear_all_topic_history()
+            logger.info(f"[RESPONSE] clear_all_topic_history | count={count}")
+            return {"success": True, "deleted_count": count}
+    except Exception as e:
+        logger.error(f"[ERROR] clear_all_topic_history | {e}")
+        return {"success": False, "error": str(e)}
+
+
 # 向后兼容别名
 add_topic_history = tool_add_topic_history
 get_topic_history = tool_get_topic_history
 get_latest_topics = tool_get_latest_topics
+delete_topic_history = tool_delete_topic_history
+clear_all_topic_history = tool_clear_all_topic_history

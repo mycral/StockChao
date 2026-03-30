@@ -19,25 +19,33 @@
 
 ```bash
 # 启动 K线查看器
-python viewer/kline_viewer.py
+python viewer/kline_viewer.py（**停止维护**） 
 
 # 启动热点监控面板
 python viewer/topic_monitor.py
 
 # 启动三连阳筛选
-python viewer/screen_three_up.py
+python viewer/screen_three_up.py（**停止维护**） 
 ```
 
 ---
 
 ## topic_monitor.py - 热点监控面板
 
+### 架构原则
+
+**数据访问必须走 MCP，不得直接引用 QueryDB 或 core 模块。**
+
+所有数据（热点增删改查）通过 MCP 服务器访问，UI 层通过 `_call_mcp()` 调用远程工具。
+分时数据来源是AKShare，不得访问MCP获取。
+
 ### 功能
 
-- **添加热点**：输入热点名称和利好消息，自动关联板块和股票
-- **分时图**：每个热点卡片显示关联股票的分时图（最多5只）
+- **添加热点**：输入热点名称和利好消息，通过 `add_topic_history` MCP 工具写入
+- **分时图**：每个热点卡片显示关联股票的分时图（最多6只）
 - **自动刷新**：每30秒自动刷新所有分时图
-- **热点历史**：从数据库加载历史热点记录
+- **热点历史**：通过 `get_topic_history` MCP 工具加载
+- **设置**：MCP 服务地址保存到 `~/.marketinfo/settings.json`，可在界面配置
 
 ### 界面布局
 
@@ -46,39 +54,37 @@ python viewer/screen_three_up.py
 ├── 热点名称输入框
 ├── 利好消息输入框
 ├── [添加热点] 按钮
-├── [刷新(30秒)] 按钮
-└── [清除] 按钮
+├── [刷新] 按钮
+├── [清除] 按钮
+└── [设置] 按钮（MCP 服务地址）
 
-主体区域（2列网格）
+主体区域（3x2 网格，固定6格）
 └── 热点卡片
     ├── 热点名称 + 板块名称
     ├── 利好消息（点击弹出详情）
-    ├── 股票分时图网格
-    └── [删除] 按钮
+    ├── 股票分时图网格（2列 x 3行）
+    └── [×] 删除按钮
 ```
 
-### 热点卡片
+### MCP 工具映射
 
-每个卡片显示：
-- 热点名称（如 `【AI概念】`）
-- 关联板块名称（如 `人工智能 / AI大模型`）
-- 利好消息（截断显示，点击展开）
-- 最多5只股票的分时图（3x2 网格）
-- 删除按钮
-
-### 数据关联
-
-用户只需输入热点名称（如 `AI概念`），系统自动：
-1. 通过名称模糊匹配 `concept_board` 表 → 获取 `concept_codes` 和 `board_names`
-2. 通过 `concept_codes` 查询 `stock_concept` 表 → 获取关联股票列表
+| 操作 | MCP 工具 |
+|------|---------|
+| 添加热点 | `add_topic_history` |
+| 查询热点 | `get_topic_history` |
+| 删除热点 | `delete_topic_history` |
+| 清空热点 | `clear_all_topic_history` |
 
 ### 依赖
 
 ```
 PyQt5
 matplotlib
-akshare（获取实时分时数据）
+akshare（分时数据，仅回退使用）
+mcp（Python SDK）
 ```
+
+> **⚠️ 注意**：`viewer` 下面所有程序都是独立运行的程序，不依赖 `core/` 模块下的 QueryDB。所有数据访问必须走 MCP 工具。
 
 ---
 

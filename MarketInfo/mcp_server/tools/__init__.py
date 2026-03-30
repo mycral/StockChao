@@ -33,6 +33,8 @@ from mcp_server.tools.topic import (
     add_topic_history,
     get_topic_history,
     get_latest_topics,
+    delete_topic_history,
+    clear_all_topic_history,
 )
 
 __all__ = [
@@ -59,4 +61,6 @@ __all__ = [
     "add_topic_history",
     "get_topic_history",
     "get_latest_topics",
+    "delete_topic_history",
+    "clear_all_topic_history",
 ]

@@ -580,6 +580,29 @@ class QueryDB:
         """
         return pd.read_sql_query(sql, self.conn, params=[limit])
 
+    def delete_topic_history(self, topic_id: int) -> bool:
+        """删除指定热点记录
+
+        Args:
+            topic_id: 热点记录ID
+
+        Returns:
+            bool: 是否成功
+        """
+        self.conn.execute("DELETE FROM topic_history WHERE id = ?", (topic_id,))
+        self.conn.commit()
+        return True
+
+    def clear_all_topic_history(self) -> int:
+        """清空所有热点历史记录
+
+        Returns:
+            int: 删除的记录数量
+        """
+        cursor = self.conn.execute("DELETE FROM topic_history")
+        self.conn.commit()
+        return cursor.rowcount
+
     # ==================== 模糊查询 ====================
 
     def fuzzy_search(self, keyword: str, item_type: str = None, limit: int = 20):

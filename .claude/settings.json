@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(curl -s --max-time 3 http://127.0.0.1:9876/mcp)",
+      "Bash(curl -s --max-time 2 http://127.0.0.1:9876/mcp)",
+      "Bash(curl -s http://127.0.0.1:9876/)",
+      "Bash(curl -s http://127.0.0.1:9876/sse)",
+      "Bash(curl -s http://127.0.0.1:9876/mcp)",
+      "Bash(python tools/test_mcp_client.py)",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(powershell -Command \"Get-Process -Name python -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(curl -s http://127.0.0.1:9876/mcp -X POST -H \"Content-Type: application/json\" -d '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":\"\"test\"\",\"\"method\"\":\"\"tools/list\"\"}')",
+      "Read(//c/Users/34475/AppData/Local/Temp/claude/c--Users-34475-Desktop-Work--------/65fb2b47-59b7-4860-b5e4-596933265e53/tasks/**)",
+      "Bash(curl -s http://127.0.0.1:9876/mcp -X POST -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -d '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":\"\"test\"\",\"\"method\"\":\"\"tools/list\"\"}')",
+      "Bash(timeout 15 python -c \":*)",
+      "Bash(curl -s http://127.0.0.1:9876/mcp -X POST -H \"Content-Type: application/json\" -d '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":\"\"1\"\",\"\"method\"\":\"\"tools/list\"\"}')",
+      "Bash(python viewer/TestMCPServer.py)"
+    ]
+  }
+}
