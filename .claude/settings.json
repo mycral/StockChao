@@ -15,7 +15,15 @@
       "Bash(curl -s http://127.0.0.1:9876/mcp -X POST -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -d '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":\"\"test\"\",\"\"method\"\":\"\"tools/list\"\"}')",
       "Bash(timeout 15 python -c \":*)",
       "Bash(curl -s http://127.0.0.1:9876/mcp -X POST -H \"Content-Type: application/json\" -d '{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"id\"\":\"\"1\"\",\"\"method\"\":\"\"tools/list\"\"}')",
-      "Bash(python viewer/TestMCPServer.py)"
+      "Bash(python viewer/TestMCPServer.py)",
+      "Read(//c/Users/34475/Desktop/Work/**)",
+      "Bash(where openclaw:*)",
+      "Read(//c/Users/34475/AppData/Roaming/npm/**)",
+      "Bash(python -m py_compile viewer/topic_monitor.py)",
+      "Bash(python -m py_compile viewer/stock_widget.py)",
+      "Bash(wc -l *.py)",
+      "Bash(ls -la \"c:/Users/34475/Desktop/Work/StockLife/MarketInfo/viewer/\"*.md)",
+      "Bash(python -m py_compile *.py)"
     ]
   }
 }

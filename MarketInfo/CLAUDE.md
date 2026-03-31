@@ -75,7 +75,7 @@ topic_history (热点监控历史记录)
 服务层
 ├── main.py（CLI 命令行）
 ├── MCP 服务（core/server.py，21个工具）
-└── viewer/（PyQt5 GUI 工具）注意，viewer是独立模块，通过mcp获取部分数据，不能直接读取数据库。也不引用其他文件夹的模块。
+└── viewer/（PySide6 GUI 工具）注意，viewer是独立模块，通过mcp获取部分数据，不能直接读取数据库。也不引用其他文件夹的模块。
 ```
 
 ---

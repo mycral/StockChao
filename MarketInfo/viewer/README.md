@@ -1,6 +1,6 @@
 # Viewer - GUI 工具集
 
-基于 PyQt5 + Matplotlib 的可视化工具，提供 K线查看、热点监控、选股策略等功能。
+基于 PySide6 + Matplotlib 的可视化工具，提供 K线查看、热点监控、选股策略等功能。
 
 ---
 
@@ -78,10 +78,11 @@ python viewer/screen_three_up.py（**停止维护**）
 ### 依赖
 
 ```
-PyQt5
+PySide6
 matplotlib
 akshare（分时数据，仅回退使用）
 mcp（Python SDK）
+fastmcp
 ```
 
 > **⚠️ 注意**：`viewer` 下面所有程序都是独立运行的程序，不依赖 `core/` 模块下的 QueryDB。所有数据访问必须走 MCP 工具。

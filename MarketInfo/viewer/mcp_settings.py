@@ -11,11 +11,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import json
 from pathlib import Path
 
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QMessageBox
+    QLineEdit, QPushButton, QMessageBox, QCheckBox
 )
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 
 # 设置文件路径
 SETTINGS_DIR = Path.home() / ".marketinfo"
@@ -23,6 +23,7 @@ SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 
 # 默认值
 DEFAULT_MCP_URL = "http://127.0.0.1:9876"
+DEFAULT_FULLSCREEN = False
 
 # 全局设置
 _settings = None
@@ -39,9 +40,9 @@ def get_settings() -> dict:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 _settings = json.load(f)
         except Exception:
-            _settings = {"mcp_server_url": DEFAULT_MCP_URL}
+            _settings = {"mcp_server_url": DEFAULT_MCP_URL, "fullscreen": DEFAULT_FULLSCREEN}
     else:
-        _settings = {"mcp_server_url": DEFAULT_MCP_URL}
+        _settings = {"mcp_server_url": DEFAULT_MCP_URL, "fullscreen": DEFAULT_FULLSCREEN}
     return _settings
 
 
@@ -59,6 +60,11 @@ def get_mcp_url() -> str:
     return get_settings().get("mcp_server_url", DEFAULT_MCP_URL)
 
 
+def get_fullscreen() -> bool:
+    """获取是否全屏显示"""
+    return get_settings().get("fullscreen", DEFAULT_FULLSCREEN)
+
+
 class MCPSettingsDialog(QDialog):
     """MCP 设置弹窗"""
 
@@ -71,7 +77,7 @@ class MCPSettingsDialog(QDialog):
             QPushButton { background-color: #0078d4; color: #fff; border: none; border-radius: 4px; padding: 6px 20px; }
             QPushButton:hover { background-color: #1a8cff; }
         """)
-        self.resize(420, 140)
+        self.resize(420, 180)
 
         layout = QVBoxLayout()
         layout.setSpacing(12)
@@ -86,6 +92,12 @@ class MCPSettingsDialog(QDialog):
         url_layout.addWidget(url_label)
         url_layout.addWidget(self.url_input, 1)
         layout.addLayout(url_layout)
+
+        # 全屏显示
+        self.fullscreen_check = QCheckBox("启动时全屏显示")
+        self.fullscreen_check.setStyleSheet("color: #a0a0a0;")
+        self.fullscreen_check.setChecked(get_fullscreen())
+        layout.addWidget(self.fullscreen_check)
 
         # 连接状态
         self.status_label = QLabel()
@@ -120,8 +132,9 @@ class MCPSettingsDialog(QDialog):
             QMessageBox.warning(self, "提示", "地址必须以 http:// 或 https:// 开头")
             return
 
-        save_settings({"mcp_server_url": url})
-        self.status_label.setText(f"✓ 已保存: {url}")
+        fullscreen = self.fullscreen_check.isChecked()
+        save_settings({"mcp_server_url": url, "fullscreen": fullscreen})
+        self.status_label.setText(f"✓ 已保存")
         self.status_label.setStyleSheet("color: #4caf50; font-size: 12px;")
-        QMessageBox.information(self, "成功", f"MCP 服务地址已保存:\n{url}")
+        QMessageBox.information(self, "成功", f"设置已保存\n全屏: {'是' if fullscreen else '否'}")
         self.accept()
