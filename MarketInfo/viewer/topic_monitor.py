@@ -373,6 +373,8 @@ class TopicMonitorPanel(QWidget):
                 self.name_input.clear()
                 self.news_input.clear()
                 self.refresh_grid()
+                # 获取股票名称
+                self._fetch_stock_names()
 
             self._call_mcp("get_topic_history", {"limit": 6}, on_history)
         else:
@@ -618,11 +620,57 @@ class TopicMonitorPanel(QWidget):
                 self.topics.clear()
                 for row in topics:
                     self._add_topic_from_row(row)
+                # 加载完成后，获取股票名称
+                self._fetch_stock_names()
             else:
                 self.topics.clear()
             self.refresh_grid()
 
         self._call_mcp("get_topic_history", {"limit": 6}, on_result)
+
+    def _fetch_stock_names(self):
+        """批量获取股票名称（从 MCP）"""
+        # 收集所有股票代码
+        all_codes = []
+        for topic in self.topics:
+            for stock in topic.get('stocks', []):
+                code = stock.get('ts_code', '')
+                if code and code not in all_codes:
+                    all_codes.append(code)
+
+        if not all_codes:
+            return
+
+        # 调用 MCP 获取股票信息
+        def on_result(result):
+            if result and hasattr(result, 'content'):
+                for item in result.content:
+                    if hasattr(item, 'text') and item.text:
+                        import json
+                        try:
+                            stock_data = json.loads(item.text)
+                            # stock_data 是 dict: {"600519.SH": {"name": "贵州茅台", ...}, ...}
+                            for topic in self.topics:
+                                for stock in topic.get('stocks', []):
+                                    code = stock.get('ts_code', '')
+                                    if code in stock_data:
+                                        info = stock_data[code]
+                                        name = info.get('name', code)
+                                        # 格式化为: 贵州茅台(600519)
+                                        stock['name'] = f"{name}({code})"
+                            self.refresh_grid()
+                        except:
+                            pass
+            else:
+                # 如果批量获取失败，使用代码作为名称
+                for topic in self.topics:
+                    for stock in topic.get('stocks', []):
+                        code = stock.get('ts_code', '')
+                        if code and not stock.get('name'):
+                            stock['name'] = code
+                self.refresh_grid()
+
+        self._call_mcp("get_stock_info_batch", {"codes": all_codes[:30]}, on_result)
 
 
 if __name__ == '__main__':

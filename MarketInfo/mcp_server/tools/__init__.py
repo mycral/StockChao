@@ -14,6 +14,7 @@ from mcp_server.tools.search import (
 
 from mcp_server.tools.stock import (
     get_stock_info,
+    get_stock_info_batch,
     get_stock_daily,
     get_stock_concepts,
     get_stock_industries,
@@ -46,6 +47,7 @@ __all__ = [
     "search_regions",
     # 股票查询工具
     "get_stock_info",
+    "get_stock_info_batch",
     "get_stock_daily",
     "get_stock_concepts",
     "get_stock_industries",
