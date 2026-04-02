@@ -1,15 +1,35 @@
 # -*- coding: utf-8 -*-
 """
 分时数据服务
-统一获取接口，支持多数据源和并发
+统一获取接口，支持多数据源
 """
-from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, datetime, timedelta
 import pandas as pd
+import time
+import threading
 
 from .base import MinuteSource
 from .sina_source import SinaMinuteSource
+from .pytdx_source import PytdxMinuteSource
 from .cache import MinuteCache
+
+
+# 全局请求调度器
+_request_lock = threading.Lock()
+_last_request_time = 0
+_request_interval = 0.5  # 默认0.5秒间隔
+
+
+def _wait_for_interval():
+    """等待请求间隔"""
+    global _last_request_time
+    with _request_lock:
+        now = time.time()
+        elapsed = now - _last_request_time
+        if elapsed < _request_interval:
+            wait_time = _request_interval - elapsed
+            time.sleep(wait_time)
+        _last_request_time = time.time()
 
 
 class MinuteDataService:
@@ -18,18 +38,21 @@ class MinuteDataService:
     def __init__(
         self,
         source: MinuteSource = None,
-        max_workers: int = 6,
+        batch_interval: float = 0.5,
         cache_ttl: int = 300
     ):
         """初始化
 
         Args:
-            source: 数据源（默认新浪）
-            max_workers: 最大并发数
+            source: 数据源（默认 Pytdx）
+            batch_interval: 批量获取间隔（秒），默认0.5秒
             cache_ttl: 缓存有效期（秒），默认5分钟
         """
-        self._source = source or SinaMinuteSource()
-        self._max_workers = max_workers
+        global _request_interval
+        # 默认使用 Pytdx（更稳定，响应更快）
+        self._source = source or PytdxMinuteSource()
+        self._batch_interval = batch_interval
+        _request_interval = float(batch_interval)  # 同步全局间隔
         self._cache = MinuteCache()
         self._cache_ttl = cache_ttl
 
@@ -43,12 +66,21 @@ class MinuteDataService:
         Returns:
             DataFrame 或 None
         """
-        # 默认今天
+        # 0. 等待请求间隔
+        _wait_for_interval()
+
+        # 1. 检查缓存（先尝试请求的日期，再尝试昨天）
         if trade_date is None:
             trade_date = date.today().strftime('%Y%m%d')
 
-        # 1. 检查缓存
+        # 先尝试请求的日期
         cached = self._cache.get(ts_code, trade_date)
+        if cached is not None:
+            return cached
+
+        # 尝试昨天的缓存（今天没数据时）
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
+        cached = self._cache.get(ts_code, yesterday)
         if cached is not None:
             return cached
 
@@ -57,13 +89,14 @@ class MinuteDataService:
         if df is not None and len(df) > 0:
             # 3. 过滤最后交易日
             df = self._filter_last_day(df)
-            # 4. 保存缓存
+            # 4. 根据实际数据日期存储缓存
             if df is not None and len(df) > 0:
-                self._cache.set(ts_code, trade_date, df)
+                actual_date = df['day'].max().strftime('%Y%m%d')
+                self._cache.set(ts_code, actual_date, df)
         return df
 
     def get_batch(self, ts_codes: list, trade_date: str = None) -> dict:
-        """并发获取多只股票
+        """顺序获取多只股票（每只间隔 batch_interval 秒）
 
         Args:
             ts_codes: 股票代码列表
@@ -72,12 +105,13 @@ class MinuteDataService:
         Returns:
             {ts_code: DataFrame 或 None, ...}
         """
-        with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
-            futures = {
-                code: executor.submit(self.get, code, trade_date)
-                for code in ts_codes
-            }
-            return {code: f.result() for code, f in futures.items()}
+        results = {}
+        for code in ts_codes:
+            results[code] = self.get(code, trade_date)
+            # 每只股票间隔一段时间，避免并发请求
+            if code != ts_codes[-1]:
+                time.sleep(self._batch_interval)
+        return results
 
     def _filter_last_day(self, df: pd.DataFrame) -> pd.DataFrame:
         """筛选最后一个交易日的数据"""

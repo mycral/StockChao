@@ -11,57 +11,153 @@ viewer/minute_service/
 ├── __init__.py          # 模块导出
 ├── base.py              # 数据源抽象基类
 ├── sina_source.py       # 新浪分时数据源
+├── pytdx_source.py      # Pytdx 分时数据源（支持自动服务器发现）
 ├── service.py           # 分时服务主类
-└── cache.py             # SQLite 本地缓存
+└── cache.py             # SQLite 本地缓存（WAL模式）
+```
+
+## 数据源
+
+### SinaMinuteSource (新浪)
+
+- 接口: `ak.stock_zh_a_minute`
+- 优点: 无需配置，直接可用
+- 缺点: 接口不稳定，有时返回空数据
+
+### PytdxMinuteSource (Pytdx) - 推荐
+
+- 接口: `get_history_minute_time_data` + `get_minute_time_data`
+- 优点: 实时数据，更稳定，响应更快，支持分钟级数据
+- 缺点: 需要能连接行情服务器
+
+### 数据获取策略
+
+```
+9:30之前:
+  └── get_history_minute_time_data (昨天数据)
+
+9:30之后:
+  ├── get_minute_time_data (今天实时数据)
+  │     ↓ 数据不足
+  ├── get_history_minute_time_data (今天)
+  │     ↓ 数据不足
+  └── get_history_minute_time_data (昨天)
+```
+
+## PytdxMinuteSource 详解
+
+### 核心特性
+
+#### 1. 服务器地址管理
+
+**问题**: 用户使用通达信软件 (TdxW.exe) 连接行情服务器，但服务器地址可能变化。
+
+**解决方案**: 
+- 启动时从数据库读取缓存的服务器地址
+- 后台线程每 5 分钟检测 TdxW.exe 的连接地址
+- 检测到新地址自动添加到服务器列表
+
+#### 2. 自动重连机制
+
+```
+获取数据流程:
+1. 尝试当前服务器 (host:port)
+   ↓ 失败
+2. 从服务器列表获取其他可用服务器
+   ↓ 全部失败
+3. 移除失败服务器，继续尝试下一个
+   ↓ 全部不可用
+4. 返回 None
+```
+
+#### 3. 服务器列表管理
+
+| 操作 | 说明 |
+|------|------|
+| `add_server()` | 添加服务器到列表 |
+| `remove_server()` | 移除服务器（连接失败时） |
+| `get_server_list()` | 获取所有可用服务器 |
+| `get_server()` | 获取当前主服务器 |
+| `set_server()` | 设置当前主服务器 |
+
+### 类参数
+
+```python
+PytdxMinuteSource(
+    host='123.60.164.122',      # 默认服务器
+    port=7709,                   # 默认端口
+    auto_refresh=True,           # 自动检测TdxW服务器变化
+    refresh_interval=300          # 检测间隔(秒)，默认5分钟
+)
+```
+
+### 后台线程
+
+启动时创建后台线程，定期执行：
+1. 调用 `get_tdxw_server()` 获取 TdxW.exe 当前地址
+2. 若发现新地址，添加到服务器列表
+
+### 使用示例
+
+```python
+from viewer.minute_service import MinuteDataService, PytdxMinuteSource
+
+# 默认使用 Pytdx（自动检测）
+service = MinuteDataService()
+
+# 自定义配置
+source = PytdxMinuteSource(
+    auto_refresh=True,
+    refresh_interval=300  # 5分钟检测一次
+)
+service = MinuteDataService(source=source)
+
+# 获取数据
+df = service.get('600519.SH')
 ```
 
 ## 数据流
 
 ```
-SinaMinuteSource (sina_source.py)
-    │
-    ▼ AKShare API
-    ak.stock_zh_a_minute()
-    │
-    ▼ 返回 DataFrame
-    列: day, open, high, low, close, volume, amount
-    类型: 全部为 string
-    行数: ~1970 (历史多天数据)
+数据请求
     │
     ▼ MinuteDataService.get()
     │
-    ├── _filter_last_day() - 筛选最后交易日
-    │   - 转换 day 为 datetime
-    │   - 筛选最后一天数据 (~238行)
-    │   - 转换数值列为 float64/int64
+    ├── 检查缓存 (cache.py)
+    │   └── 命中 → 返回 DataFrame
     │
-    ├── 缓存写入 (cache.py)
-    │   - 使用 pickle 序列化 DataFrame
-    │   - 存储到 SQLite
+    ▼ 数据源获取
     │
-    ▼ 返回 DataFrame (最终格式)
-    列: day, open, high, low, close, volume, amount
-    类型:
-        - day: datetime64[us]
-        - open/high/low/close: float64
-        - volume: int64
-        - amount: float64
-    行数: ~238 (仅最后交易日)
+    ├── SinaMinuteSource
+    │   └── ak.stock_zh_a_minute()
+    │
+    └── PytdxMinuteSource (默认)
+        ├── 检查当前连接
+        │   └── 失败 → 尝试列表中其他服务器
+        │
+        ▼ pytdx API
+        get_security_bars(3, market, code, 0, 240)
+        │
+        ▼ 数据处理
+        ├── 转换为 DataFrame
+        ├── 列名映射 (vol → volume)
+        └── 过滤最后交易日
+        │
+        ▼ 保存缓存
+        └── pickle → SQLite
+        │
+        ▼ 返回 DataFrame
 ```
 
 ## 数据格式
 
-### AKShare 原始返回
+### Pytdx API 返回格式
 
-| 列名 | 类型 | 说明 |
-|------|------|------|
-| day | string | 时间，格式 `YYYY-MM-DD HH:MM:SS` |
-| open | string | 开盘价 |
-| high | string | 最高价 |
-| low | string | 最低价 |
-| close | string | 收盘价 |
-| volume | string | 成交量 |
-| amount | string | 成交额 |
+| API | 列名 | 类型 | 说明 |
+|-----|------|------|------|
+| get_history_minute_time_data | price, vol | float64 | 分钟价格和成交量 |
+| get_minute_time_data | price, vol | float64 | 实时分钟数据 |
+| get_security_bars | open, high, low, close, vol, amount, datetime | - | OHLCV格式 |
 
 ### Service 输出（最终格式）
 
@@ -77,35 +173,82 @@ SinaMinuteSource (sina_source.py)
 
 ## 缓存机制
 
-- **存储位置**: `viewer/minute_service/cache/minute_cache.db`
-- **存储方式**: SQLite + pickle 序列化 DataFrame
-- **缓存键**: `(ts_code, trade_date)` - 股票代码 + 交易日期
-- **有效期**: 默认 5 分钟（可配置）
+### 数据库
 
-## 使用方式
+- **位置**: `viewer/minute_service/cache/minute_cache.db`
+- **模式**: WAL (Write-Ahead Logging)
+- **存储**: pickle 序列化 DataFrame
+
+### 表结构
+
+```sql
+-- 分时数据缓存
+CREATE TABLE minute_cache (
+    ts_code TEXT,           -- 股票代码
+    trade_date TEXT,        -- 交易日期
+    data BLOB,              -- 序列化数据
+    updated_at INTEGER,    -- 更新时间
+    PRIMARY KEY (ts_code, trade_date)
+);
+
+-- 服务器缓存
+CREATE TABLE server_cache (
+    key TEXT PRIMARY KEY,  -- 键名
+    host TEXT,              -- 服务器地址
+    port INTEGER,           -- 服务器端口
+    updated_at INTEGER      -- 更新时间
+);
+```
+
+### 缓存 API
 
 ```python
 from viewer.minute_service import MinuteDataService
+from viewer.minute_service.cache import MinuteCache
 
-# 创建服务
+# 服务使用
 service = MinuteDataService()
+df = service.get('600519.SH')
 
-# 获取单只股票分时
-df = service.get('600519.SH')  # 默认今天
+# 缓存管理
+cache = MinuteCache()
+cache.get('600519.SH', '20260402')   # 获取缓存
+cache.set('600519.SH', '20260402', df)  # 设置缓存
+cache.clear('600519.SH')             # 清理缓存
 
-# 指定日期获取
-df = service.get('600519.SH', '20260402')
-
-# 批量获取（并发）
-results = service.get_batch(['600519.SH', '601398.SH', '000001.SZ'])
+# 服务器管理
+cache.get_server()                   # 获取主服务器
+cache.set_server('123.60.164.122', 7709)  # 设置主服务器
+cache.get_server_list()              # 获取服务器列表
+cache.add_server('123.60.164.122', 7709)  # 添加到列表
+cache.remove_server('123.60.164.122', 7709)  # 移除
 ```
 
-## KLineChart 兼容性
+## 工具函数
 
-[KLineChart.plot_minute()](kline_viewer.py#L193) 兼容以下列名：
+### get_tdxw_server()
 
-- 时间列: `trade_time`, `时间`, `day`（已兼容）
-- 成交量列: `vol`, `volume`（已兼容）
+获取 TdxW.exe 连接的远程服务器地址。
+
+```python
+from viewer.minute_service import get_tdxw_server
+
+server = get_tdxw_server()  # 返回 "123.60.164.122:7709" 或 ""
+```
+
+**实现原理**:
+1. 通过 PowerShell 获取 TdxW.exe 进程 ID
+2. 查询该进程的 TCP 连接
+3. 筛选 Established 状态的连接
+4. 提取远程地址和端口
+
+## 配置项
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| source | PytdxMinuteSource | 数据源 |
+| max_workers | 6 | 并发数 |
+| cache_ttl | 300 | 缓存有效期（秒） |
 
 ## 新增数据源
 
@@ -126,11 +269,3 @@ class MySource(MinuteSource):
 # 使用
 service = MinuteDataService(source=MySource())
 ```
-
-## 配置项
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| source | SinaMinuteSource | 数据源 |
-| max_workers | 6 | 并发数 |
-| cache_ttl | 300 | 缓存有效期（秒） |

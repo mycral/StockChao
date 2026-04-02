@@ -9,11 +9,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import threading
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QObject, Signal
 from PySide6.QtGui import QFont
 
 from viewer.kline_viewer import KLineChart
 from viewer.minute_service import MinuteDataService
+
+
+# 全局信号发射器（跨线程安全）
+class RenderSignalEmitter(QObject):
+    render_ready = Signal(str)  # 发射股票代码
+
+_render_emitter = RenderSignalEmitter()
 
 
 def normalize_code(code: str) -> str:
@@ -59,10 +66,20 @@ class StockWidget(QWidget):
 
         self._init_ui()
 
+        # 连接渲染信号
+        self._render_connection = _render_emitter.render_ready.connect(self._on_render_signal)
+
         # 延迟加载：先尝试名称，再加载分时
         if self.name == self.ts_code and mcp_call_func:
             QTimer.singleShot(300, self._fetch_name)
         QTimer.singleShot(500, self._fetch_minute)
+
+    def _on_render_signal(self, ts_code):
+        """信号回调，在主线程执行"""
+        if ts_code != self.ts_code:
+            return
+        print(f"[StockWidget] {self.ts_code} === 信号回调执行 ===")
+        self._render_minute()
 
     def _init_ui(self):
         self.setStyleSheet("background-color: #1e1e1e; border-radius: 4px; padding: 2px;")
@@ -133,15 +150,18 @@ class StockWidget(QWidget):
     def _fetch_minute_bg(self):
         """后台线程获取分时数据"""
         if not self._loading:
+            print(f"[StockWidget] {self.ts_code} 已关闭，跳过")
             return
         try:
             # 使用分时服务获取（已处理类型转换和最后交易日过滤）
             df = _minute_service.get(self.ts_code)
 
             if df is not None and len(df) > 0:
-                print(f"[StockWidget] {self.ts_code} 分时数据获取完成，行数: {len(df)}")
-                # 回到主线程渲染（检查加载状态）
-                QTimer.singleShot(0, lambda: self._loading and self._render_chart(df))
+                print(f"[StockWidget] {self.ts_code} 分时数据获取完成，行数: {len(df)}, _loading={self._loading}")
+                # 保存数据，用信号触发主线程渲染
+                self._pending_df = df
+                print(f"[StockWidget] {self.ts_code} 发送渲染信号")
+                _render_emitter.render_ready.emit(self.ts_code)
             else:
                 print(f"[StockWidget] {self.ts_code} 无数据")
                 QTimer.singleShot(0, self._show_error)
@@ -153,6 +173,22 @@ class StockWidget(QWidget):
             print(f"[StockWidget] {self.ts_code} 获取失败: {e}")
             QTimer.singleShot(0, self._show_error)
 
+    def _render_minute(self):
+        """渲染分时图（主线程）"""
+        print(f"[StockWidget] {self.ts_code} === _render_minute 执行 === _loading={self._loading}")
+        if not self._loading:
+            print(f"[StockWidget] {self.ts_code} _loading=False, 返回")
+            return
+        # 使用在 fetch_minute_bg 中保存的数据
+        df = getattr(self, '_pending_df', None)
+        print(f"[StockWidget] {self.ts_code} _pending_df={len(df) if df is not None else None}")
+        if df is None:
+            print(f"[StockWidget] {self.ts_code} _pending_df is None, 返回")
+            return
+        print(f"[StockWidget] {self.ts_code} 调用 _render_chart")
+        self._render_chart(df)
+        self._pending_df = None
+
     def _render_chart(self, df):
         if not self._loading or df is None or len(df) == 0:
             return
@@ -163,15 +199,19 @@ class StockWidget(QWidget):
             self.placeholder.deleteLater()
             self.placeholder = None
 
-        # 隐藏名称标签，节省空间
+        # 隐藏名称标签
         if self.name_label:
             self.name_label.setVisible(False)
 
-        # 创建图表
-        chart = KLineChart(width=3, height=1.5, dpi=80)
-        chart.plot_minute(df, self.ts_code, self.name)
-        self.layout().addWidget(chart)
-        self._chart = chart
+        # 移除已有图表
+        if self._chart:
+            self.layout().removeWidget(self._chart)
+            self._chart.deleteLater()
+
+        # 创建新图表
+        self._chart = KLineChart(width=3, height=1.5, dpi=80)
+        self._chart.plot_minute(df, self.ts_code, self.name)
+        self.layout().addWidget(self._chart)
 
     def _show_error(self):
         if self.name_label:

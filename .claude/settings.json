@@ -25,7 +25,17 @@
       "Bash(ls -la \"c:/Users/34475/Desktop/Work/StockLife/MarketInfo/viewer/\"*.md)",
       "Bash(python -m py_compile *.py)",
       "Bash(python -c \"import pandas as pd; import akshare as ak; df = ak.stock_zh_a_minute\\(symbol=''sh601398'', period=''1'', adjust=''''\\); df[''day''] = pd.to_datetime\\(df[''day'']\\); last_date = str\\(df[''day''].max\\(\\).date\\(\\)\\); df_last = df[df[''day''].astype\\(str\\).str.startswith\\(last_date\\)].copy\\(\\); print\\(f''原始: {len\\(df\\)}, 筛选后: {len\\(df_last\\)}''\\)\")",
-      "Bash(python -c \"from viewer.minute_service import MinuteDataService; print\\(''模块导入成功''\\)\")"
+      "Bash(python -c \"from viewer.minute_service import MinuteDataService; print\\(''模块导入成功''\\)\")",
+      "Bash(pip install:*)",
+      "Bash(python -c ':*)",
+      "Bash(ping 119.147.212.81 -n 1)",
+      "Bash(ping 119.97.254.116 -n 1)",
+      "Bash(findstr \"TdxW.exe\")",
+      "Bash(powershell -Command \"Get-NetTCPConnection -OwningProcess \\(Get-Process -Name TdxW -ErrorAction SilentlyContinue\\).Id -ErrorAction SilentlyContinue | Select-Object RemoteAddress, RemotePort, State\")",
+      "Bash(python tools/tdxw_connections.py)",
+      "Bash(powershell -Command \"Get-Process -Name TdxW -ErrorAction SilentlyContinue | Select-Object Name, Id\")",
+      "Bash(python -u viewer/topic_monitor.py)",
+      "Bash(timeout 10 python -c ':*)"
     ]
   }
 }

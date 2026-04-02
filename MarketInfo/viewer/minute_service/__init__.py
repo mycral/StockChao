@@ -6,6 +6,7 @@
 from .service import MinuteDataService
 from .base import MinuteSource
 from .sina_source import SinaMinuteSource
+from .pytdx_source import PytdxMinuteSource, get_tdxw_server
 from .cache import MinuteCache
 
-__all__ = ['MinuteDataService', 'MinuteSource', 'SinaMinuteSource', 'MinuteCache']
+__all__ = ['MinuteDataService', 'MinuteSource', 'SinaMinuteSource', 'PytdxMinuteSource', 'MinuteCache', 'get_tdxw_server']

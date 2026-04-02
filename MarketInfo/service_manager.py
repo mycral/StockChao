@@ -33,6 +33,7 @@ SERVICES = {
         "command": "python",
         "args": ["viewer/topic_monitor.py"],
         "cwd": os.path.dirname(__file__),
+        "env": {"PYTHONUNBUFFERED": "1"},
         "description": "热点监控面板"
     }
 }
@@ -146,6 +147,14 @@ class ServiceTab(QFrame):
 
         self.process = QProcess(self)
         self.process.setProcessEnvironment(QProcessEnvironment.systemEnvironment())
+
+        # 设置环境变量
+        env_config = config.get("env", {})
+        if env_config:
+            env = self.process.processEnvironment()
+            for key, value in env_config.items():
+                env.insert(key, value)
+            self.process.setProcessEnvironment(env)
 
         # 设置工作目录
         cwd = config.get("cwd")
