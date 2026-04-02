@@ -1,0 +1,3 @@
+[submodule "depends/xtick"]
+	path = depends/xtick
+	url = https://github.com/xticktop/skills.git
