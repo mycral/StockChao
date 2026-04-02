@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """
 K线查看器和选股工具
-基于PyQt5 + Matplotlib
+基于PySide6 + Matplotlib
 """
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+# 必须最先设置 Matplotlib 后端（必须在任何 matplotlib 导入之前）
+import matplotlib
+matplotlib.use('QtAgg')
 
 import sqlite3
 import pandas as pd
@@ -17,15 +21,15 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from config import DB_PATH
-from PyQt5.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QLabel, QLineEdit, QPushButton,
     QComboBox, QTabWidget, QDateEdit, QGroupBox, QFormLayout,
     QSpinBox, QDoubleSpinBox, QSplitter, QMessageBox, QHeaderView, QAbstractItemView,
     QDialog, QDialogButtonBox, QCompleter
 )
-from PyQt5.QtCore import Qt, QDate, QStringListModel
-from PyQt5.QtGui import QFont, QColor
+from PySide6.QtCore import Qt, QDate, QStringListModel
+from PySide6.QtGui import QFont, QColor
 
 # 设置中文字体
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'Arial Unicode MS']
@@ -245,7 +249,7 @@ class KLineChart(FigureCanvas):
                            linestyle='--', label='均价')
 
         # 设置
-        self.axes.set_title(f'{name}', fontsize=11, fontweight='bold', color='#e0e0e0')
+        self.axes.set_title(f'{name} ({ts_code})', fontsize=11, fontweight='bold', color='#e0e0e0')
         self.axes.set_ylabel('价格', color='#a0a0a0')
         self.axes.grid(True, alpha=0.3, color=grid_color)
         self.axes.tick_params(labelbottom=False)

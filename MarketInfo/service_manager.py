@@ -100,8 +100,24 @@ class ServiceTab(QFrame):
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.stop_service)
 
+        # 清理日志按钮
+        clear_btn = QPushButton("清理")
+        clear_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3c3c3c;
+                color: #e0e0e0;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                min-width: 60px;
+            }
+            QPushButton:hover { background-color: #505050; }
+        """)
+        clear_btn.clicked.connect(self.clear_log)
+
         header_layout.addWidget(self.status_label)
         header_layout.addStretch()
+        header_layout.addWidget(clear_btn)
         header_layout.addWidget(self.start_btn)
         header_layout.addWidget(self.stop_btn)
         header.setLayout(header_layout)
@@ -207,6 +223,10 @@ class ServiceTab(QFrame):
         cursor.insertText(text)
         self.log_edit.setTextCursor(cursor)
         self.log_edit.ensureCursorVisible()
+
+    def clear_log(self):
+        """清理日志"""
+        self.log_edit.clear()
 
     def close(self):
         """关闭时停止进程"""

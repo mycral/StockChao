@@ -127,7 +127,7 @@ viewer/
 ```python
 {
     "ts_code": "600519.SH",  # 规范化代码
-    "name": "贵州茅台",     # 从缓存获取
+    "name": "贵州茅台",     # 从缓存获取，或则和从MCP获取，不允许访问外部数据库
     "chart": KLineChart     # 图表对象
 }
 ```

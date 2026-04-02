@@ -252,8 +252,8 @@ class TopicMonitorPanel(QWidget):
         return card
 
     def _create_stock_widget(self, ts_code: str) -> QWidget:
-        """创建股票组件：传入代码字符串，StockWidget自治加载"""
-        return StockWidget(ts_code)
+        """创建股票组件：传入代码字符串，通过回调获取名称"""
+        return StockWidget(ts_code, mcp_call_func=self._call_mcp)
 
     def _create_empty_stock_widget(self) -> QWidget:
         w = QWidget()
