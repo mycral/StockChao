@@ -12,6 +12,7 @@
 | [topic_monitor.py](topic_monitor.py) | 热点监控面板 |
 | [screen_three_up.py](screen_three_up.py) | 三连阳筛选工具（**停止维护**） |
 | [skills/](skills/) | 选股策略模块 |
+| [minute_service/](minute_service/) | 分时数据服务 |
 
 ---
 
@@ -37,7 +38,7 @@ python viewer/screen_three_up.py（**停止维护**）
 **数据访问必须走 MCP，不得直接引用 QueryDB 或 core 模块。**
 
 所有数据（热点增删改查）通过 MCP 服务器访问，UI 层通过 `_call_mcp()` 调用远程工具。
-分时数据来源是AKShare，不得访问MCP获取。
+分时数据通过 minute_service 获取（内部使用 Pytdx 或 Sina 数据源）。
 
 ### 功能
 

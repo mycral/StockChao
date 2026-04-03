@@ -121,14 +121,22 @@ def _create_stock_widget(self, ts_code):
 ```python
 def __init__(self, ts_code):
     # 传入代码如 "600519.SH"
-    # 延迟200ms后加载
+    # 延迟500ms后加载
 
-def _load_data(self):
-    # 检查缓存 → AKShare → 缓存
-    # 渲染图表
+def _fetch_minute(self):
+    # 后台线程 → minute_service.get()
+    # 使用 Qt Signal 回调主线程渲染
+```
 
-def _render(self, df):
-    # 显示KLineChart
+### minute_service 使用
+```python
+from viewer.minute_service import MinuteDataService
+
+service = MinuteDataService()
+df = service.get('600519.SH')  # 自动缓存
+
+# 批量获取（顺序，每只0.5秒）
+results = service.get_batch(['600519.SH', '000001.SZ'])
 ```
 
 ## 七、性能优化
@@ -137,15 +145,18 @@ def _render(self, df):
 - 每个StockWidget独立加载，不阻塞其他组件
 
 ### 2. 缓存策略
+- 分时数据：SQLite 缓存（minute_cache.db）
+- 股票名称：模块级缓存
+
+### 3. 请求间隔
 ```python
-# 分时缓存（5分钟有效）
-if now - cached_time < 300:
-    return cached_df
+# 全局调度，每只股票间隔0.5秒
+_request_interval = 0.5
 ```
 
-### 3. 延迟启动
+### 4. 延迟启动
 ```python
-QTimer.singleShot(200, self._start_load)
+QTimer.singleShot(500, self._fetch_minute)
 # 让父组件先渲染完成
 ```
 

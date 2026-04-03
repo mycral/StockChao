@@ -12,13 +12,18 @@ A股热点板块实时监控面板，基于 PySide6 + Matplotlib，支持：
 
 ```
 viewer/
-├── topic_monitor.py    # 主界面入口 (~300行)
-├── mcp_runner.py        # MCP 异步客户端 (~80行)
-├── stock_widget.py     # 自治股票组件 (~130行)
-├── mcp_settings.py     # 设置弹窗 (~140行)
-├── kline_viewer.py     # K线/分时图组件 (~1350行)
+├── topic_monitor.py     # 主界面入口 (~300行)
+├── mcp_runner.py         # MCP 异步客户端 (~80行)
+├── stock_widget.py      # 自治股票组件 (~250行)
+├── mcp_settings.py      # 设置弹窗 (~140行)
+├── kline_viewer.py      # K线/分时图组件 (~1350行)
 ├── screen_three_up.py  # 选股策略（未用）
-└── __init__.py
+└── minute_service/      # 分时数据服务
+    ├── service.py       # 分时服务主类
+    ├── pytdx_source.py  # Pytdx 数据源
+    ├── sina_source.py   # 新浪数据源
+    ├── cache.py         # SQLite 缓存
+    └── base.py          # 数据源抽象基类
 ```
 
 ## 三、数据流
@@ -48,9 +53,15 @@ viewer/
 │                       │                                          │
 │                       └── stock_widget.py                      │
 │                               │                                 │
-│                               ├── _load_data()                  │
-│                               │                                │
-│                               └── akshare (直接获取分时)       │
+│                               ├── _fetch_minute_bg()           │
+│                               │    (后台线程)                  │
+│                               │                                 │
+│                               └── minute_service.get()         │
+│                                       │                         │
+│                                       ├── 检查缓存             │
+│                                       │                         │
+│                                       └── pytdx API            │
+│                                           (分钟数据)           │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -87,14 +98,25 @@ viewer/
 | `StockWidget` | 自治组件，自己加载数据 |
 | `normalize_code()` | 代码规范化（600000 → 600000.SH） |
 | `_stock_name_cache` | 名称缓存（模块级） |
-| `_minute_data_cache` | 分时缓存（模块级） |
+| `_render_emitter` | Qt信号发射器（跨线程） |
 
-**行为**：
-1. 创建时显示代码+"加载中..."
-2. 延迟 200ms 后开始加载
-3. 检查缓存，有则直接显示
-4. 无则请求 AKShare 获取分时数据
-5. 渲染图表
+**加载流程**：
+```
+创建 → 延迟500ms → _fetch_minute()
+         ↓
+    后台线程 → minute_service.get()
+         ↓
+    保存 _pending_df
+         ↓
+    发射信号 → _on_render_signal
+         ↓
+    主线程 → _render_chart()
+```
+
+**信号机制**：
+- 使用 Qt Signal 跨线程调用
+- 后台线程获取数据后发射信号
+- 信号回调在主线程执行，更新 UI
 
 ### 4. mcp_settings.py（设置）
 **职责**：MCP 服务地址配置

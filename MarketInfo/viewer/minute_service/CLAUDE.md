@@ -11,9 +11,27 @@ viewer/minute_service/
 ├── __init__.py          # 模块导出
 ├── base.py              # 数据源抽象基类
 ├── sina_source.py       # 新浪分时数据源
-├── pytdx_source.py      # Pytdx 分时数据源（支持自动服务器发现）
+├── pytdx_source.py      # Pytdx 分时数据源
 ├── service.py           # 分时服务主类
-└── cache.py             # SQLite 本地缓存（WAL模式）
+├── cache.py             # SQLite 本地缓存（WAL模式）
+└── cache/               # 缓存数据库目录
+    └── minute_cache.db  # SQLite 数据库
+```
+
+## 快速开始
+
+```python
+from viewer.minute_service import MinuteDataService
+
+# 创建服务（默认使用 Pytdx）
+service = MinuteDataService()
+
+# 获取单只股票分时
+df = service.get('600519.SH')
+print(f"获取 {len(df)} 条数据")
+
+# 批量获取（顺序，每只0.5秒）
+results = service.get_batch(['600519.SH', '000001.SZ'])
 ```
 
 ## 数据源
@@ -22,12 +40,12 @@ viewer/minute_service/
 
 - 接口: `ak.stock_zh_a_minute`
 - 优点: 无需配置，直接可用
-- 缺点: 接口不稳定，有时返回空数据
+- 缺点: 接口不稳定
 
 ### PytdxMinuteSource (Pytdx) - 推荐
 
 - 接口: `get_history_minute_time_data` + `get_minute_time_data`
-- 优点: 实时数据，更稳定，响应更快，支持分钟级数据
+- 优点: 实时数据，更稳定，支持分钟级数据
 - 缺点: 需要能连接行情服务器
 
 ### 数据获取策略
@@ -37,116 +55,127 @@ viewer/minute_service/
   └── get_history_minute_time_data (昨天数据)
 
 9:30之后:
-  ├── get_minute_time_data (今天实时数据)
+  ├── get_minute_time_data (今天实时)
   │     ↓ 数据不足
   ├── get_history_minute_time_data (今天)
   │     ↓ 数据不足
   └── get_history_minute_time_data (昨天)
 ```
 
-## PytdxMinuteSource 详解
+## 核心特性
 
-### 核心特性
+### 1. 请求间隔控制
 
-#### 1. 服务器地址管理
+避免并发请求，每只股票间隔 0.5 秒：
 
-**问题**: 用户使用通达信软件 (TdxW.exe) 连接行情服务器，但服务器地址可能变化。
+```python
+# 全局调度器确保请求间隔
+def _wait_for_interval():
+    global _last_request_time
+    with _request_interval:
+        elapsed = time.time() - _last_request_time
+        if elapsed < _request_interval:
+            time.sleep(_request_interval - elapsed)
+```
 
-**解决方案**: 
+### 2. 连接有效性检测
+
+每次请求前测试连接是否有效，无效则重连：
+
+```python
+def _connect(self):
+    if self._api is not None:
+        try:
+            test_data = self._api.get_security_bars(...)
+            if test_data:
+                return True
+        except:
+            self._disconnect()
+    # 重连逻辑...
+```
+
+### 3. 服务器地址管理
+
 - 启动时从数据库读取缓存的服务器地址
-- 后台线程每 5 分钟检测 TdxW.exe 的连接地址
+- 后台线程每 5 分钟检测 TdxW.exe 连接地址
 - 检测到新地址自动添加到服务器列表
 
-#### 2. 自动重连机制
+### 4. 自动重连机制
 
 ```
 获取数据流程:
 1. 尝试当前服务器 (host:port)
    ↓ 失败
 2. 从服务器列表获取其他可用服务器
-   ↓ 全部失败
+   ↓ 失败
 3. 移除失败服务器，继续尝试下一个
    ↓ 全部不可用
 4. 返回 None
 ```
 
-#### 3. 服务器列表管理
+## 类参考
 
-| 操作 | 说明 |
-|------|------|
-| `add_server()` | 添加服务器到列表 |
-| `remove_server()` | 移除服务器（连接失败时） |
-| `get_server_list()` | 获取所有可用服务器 |
-| `get_server()` | 获取当前主服务器 |
-| `set_server()` | 设置当前主服务器 |
-
-### 类参数
+### MinuteDataService
 
 ```python
-PytdxMinuteSource(
-    host='123.60.164.122',      # 默认服务器
-    port=7709,                   # 默认端口
-    auto_refresh=True,           # 自动检测TdxW服务器变化
-    refresh_interval=300          # 检测间隔(秒)，默认5分钟
-)
+class MinuteDataService:
+    def __init__(
+        self,
+        source: MinuteSource = None,  # 数据源，默认 Pytdx
+        batch_interval: float = 0.5,   # 请求间隔（秒）
+        cache_ttl: int = 300           # 缓存有效期（秒）
+    )
+
+    def get(self, ts_code: str, trade_date: str = None) -> pd.DataFrame
+    def get_batch(self, ts_codes: list, trade_date: str = None) -> dict
+    def clear_cache(self, ts_code: str = None, trade_date: str = None)
+    @property def source_name(self) -> str
 ```
 
-### 后台线程
-
-启动时创建后台线程，定期执行：
-1. 调用 `get_tdxw_server()` 获取 TdxW.exe 当前地址
-2. 若发现新地址，添加到服务器列表
-
-### 使用示例
+### PytdxMinuteSource
 
 ```python
-from viewer.minute_service import MinuteDataService, PytdxMinuteSource
+class PytdxMinuteSource(MinuteSource):
+    def __init__(
+        self,
+        host: str = '123.60.164.122',
+        port: int = 7709,
+        auto_refresh: bool = True,
+        refresh_interval: int = 300
+    )
 
-# 默认使用 Pytdx（自动检测）
-service = MinuteDataService()
-
-# 自定义配置
-source = PytdxMinuteSource(
-    auto_refresh=True,
-    refresh_interval=300  # 5分钟检测一次
-)
-service = MinuteDataService(source=source)
-
-# 获取数据
-df = service.get('600519.SH')
+    @property def name(self) -> str  # 返回 "pytdx"
+    def fetch(self, ts_code: str) -> pd.DataFrame
+    def close(self)
 ```
 
-## 数据流
+### MinuteCache
 
+```python
+class MinuteCache:
+    def get(self, ts_code: str, trade_date: str) -> pd.DataFrame
+    def set(self, ts_code: str, trade_date: str, data: pd.DataFrame)
+    def clear(self, ts_code: str = None, trade_date: str = None)
+
+    # 服务器管理
+    def get_server(self) -> tuple  # (host, port)
+    def set_server(self, host: str, port: int)
+    def get_server_list(self) -> list  # [(host, port), ...]
+    def add_server(self, host: str, port: int)
+    def remove_server(self, host: str, port: int)
 ```
-数据请求
-    │
-    ▼ MinuteDataService.get()
-    │
-    ├── 检查缓存 (cache.py)
-    │   └── 命中 → 返回 DataFrame
-    │
-    ▼ 数据源获取
-    │
-    ├── SinaMinuteSource
-    │   └── ak.stock_zh_a_minute()
-    │
-    └── PytdxMinuteSource (默认)
-        ├── 检查当前连接
-        │   └── 失败 → 尝试列表中其他服务器
-        │
-        ▼ pytdx API
-        get_security_bars(3, market, code, 0, 240)
-        │
-        ▼ 数据处理
-        ├── 转换为 DataFrame
-        ├── 列名映射 (vol → volume)
-        └── 过滤最后交易日
-        │
-        ▼ 保存缓存
-        └── pickle → SQLite
-        │
-        ▼ 返回 DataFrame
+
+### MinuteSource (抽象基类)
+
+```python
+class MinuteSource(ABC):
+    @property @abstractmethod
+    def name(self) -> str: pass
+
+    @abstractmethod
+    def fetch(self, ts_code: str) -> pd.DataFrame:
+        # 返回 DataFrame，列: day, open, high, low, close, volume, amount
+        pass
 ```
 
 ## 数据格式
@@ -193,35 +222,11 @@ CREATE TABLE minute_cache (
 
 -- 服务器缓存
 CREATE TABLE server_cache (
-    key TEXT PRIMARY KEY,  -- 键名
-    host TEXT,              -- 服务器地址
-    port INTEGER,           -- 服务器端口
-    updated_at INTEGER      -- 更新时间
+    key TEXT PRIMARY KEY,  -- 键名 (tdxw_server 或 tdxw_server_{host}_{port})
+    host TEXT,             -- 服务器地址
+    port INTEGER,          -- 服务器端口
+    updated_at INTEGER    -- 更新时间
 );
-```
-
-### 缓存 API
-
-```python
-from viewer.minute_service import MinuteDataService
-from viewer.minute_service.cache import MinuteCache
-
-# 服务使用
-service = MinuteDataService()
-df = service.get('600519.SH')
-
-# 缓存管理
-cache = MinuteCache()
-cache.get('600519.SH', '20260402')   # 获取缓存
-cache.set('600519.SH', '20260402', df)  # 设置缓存
-cache.clear('600519.SH')             # 清理缓存
-
-# 服务器管理
-cache.get_server()                   # 获取主服务器
-cache.set_server('123.60.164.122', 7709)  # 设置主服务器
-cache.get_server_list()              # 获取服务器列表
-cache.add_server('123.60.164.122', 7709)  # 添加到列表
-cache.remove_server('123.60.164.122', 7709)  # 移除
 ```
 
 ## 工具函数
@@ -247,7 +252,7 @@ server = get_tdxw_server()  # 返回 "123.60.164.122:7709" 或 ""
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | source | PytdxMinuteSource | 数据源 |
-| max_workers | 6 | 并发数 |
+| batch_interval | 0.5 | 请求间隔（秒） |
 | cache_ttl | 300 | 缓存有效期（秒） |
 
 ## 新增数据源

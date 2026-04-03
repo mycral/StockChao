@@ -3,3 +3,6 @@
 /MarketInfo/data/skill_results
 /tdx
 /depends/akshare
+*.db-wal
+*.db-wal
+*.db-shm
