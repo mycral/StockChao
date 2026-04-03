@@ -4,5 +4,4 @@
 /tdx
 /depends/akshare
 *.db-wal
-*.db-wal
 *.db-shm

@@ -1,3 +1,6 @@
 [submodule "depends/xtick"]
 	path = depends/xtick
 	url = https://github.com/xticktop/skills.git
+[submodule "depends/tickflow"]
+	path = depends/tickflow
+	url = https://github.com/tickflow-org/tickflow.git
